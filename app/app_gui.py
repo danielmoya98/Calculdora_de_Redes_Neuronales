@@ -635,7 +635,6 @@ class App(ctk.CTk):
 
             messagebox.showinfo("Reset Completo", "Toda la configuración ha sido reseteada.")
 
-
     def visualize_network(self):
         if not self.nn_calculator.layers_neurons:
             messagebox.showinfo("Visualización", "Defina una arquitectura primero.")
@@ -649,59 +648,81 @@ class App(ctk.CTk):
         self.fig, self.ax = plt.subplots(figsize=(8, 6))
 
         def sanitize_color_for_matplotlib(color_val):
-            if isinstance(color_val, str):  # Asegurarse que es un string antes de lower()
-                color_val_lower = color_val.lower()
-                if color_val_lower == "gray17": return "#2B2B2B"
-                if color_val_lower == "gray20": return "#333333"
-                if color_val_lower == "gray92": return "#EBEBEB"
-            return color_val  # Devuelve el original si no es un caso especial o no es string
+            """Convierte valores de color de CustomTkinter a formatos válidos para Matplotlib"""
+            # Si es None o vacío, usar fallback
+            if not color_val:
+                return "#2B2B2B"
 
-        try:
-            theme_val = ctk.ThemeManager.theme["CTkFrame"]["fg_color"]
-            if isinstance(theme_val, tuple):
-                if len(theme_val) > 1:
-                    raw_frame_bg_color = theme_val[1]  # Preferir modo oscuro si está disponible
-                elif len(theme_val) == 1:
-                    raw_frame_bg_color = theme_val[0]  # Usar el único color en la tupla
-                else:  # Tupla vacía
-                    raw_frame_bg_color = "#2B2B2B"  # Fallback
-            else:  # Se asume que es una cadena de color directa
-                raw_frame_bg_color = theme_val
-        except (KeyError, IndexError, TypeError):
-            raw_frame_bg_color = "#2B2B2B"  # Fallback general
+            # Si es una tupla, extraer el primer elemento válido
+            if isinstance(color_val, (tuple, list)):
+                for item in color_val:
+                    if isinstance(item, str) and item.strip():
+                        color_val = item
+                        break
+                else:
+                    return "#2B2B2B"  # Si no hay elementos válidos en la tupla
+
+            # Asegurar que es string
+            if not isinstance(color_val, str):
+                return "#2B2B2B"
+
+            color_val_lower = color_val.lower().strip()
+
+            # Mapeo de colores especiales de CustomTkinter
+            color_mapping = {
+                "gray17": "#2B2B2B",
+                "gray20": "#333333",
+                "gray92": "#EBEBEB",
+                "transparent": "#2B2B2B"
+            }
+
+            if color_val_lower in color_mapping:
+                return color_mapping[color_val_lower]
+
+            # Si ya es un color hexadecimal válido, devolverlo
+            if color_val.startswith('#') and len(color_val) in [4, 7]:
+                return color_val
+
+            # Para otros colores nombrados, intentar devolverlos (Matplotlib los reconocerá)
+            return color_val
+
+        def extract_color_from_theme(theme_path, fallback_color):
+            """Extrae color del tema de manera segura"""
+            try:
+                theme_val = ctk.ThemeManager.theme
+                for key in theme_path:
+                    theme_val = theme_val[key]
+
+                if isinstance(theme_val, (tuple, list)):
+                    if len(theme_val) > 1:
+                        return theme_val[1]  # Preferir modo oscuro
+                    elif len(theme_val) == 1:
+                        return theme_val[0]  # Usar el único disponible
+                    else:
+                        return fallback_color  # Tupla vacía
+                else:
+                    return theme_val  # Es un valor directo
+            except (KeyError, IndexError, TypeError, AttributeError):
+                return fallback_color
+
+        # Extraer colores del tema de manera segura
+        raw_frame_bg_color = extract_color_from_theme(["CTkFrame", "fg_color"], "#2B2B2B")
+        raw_label_text_color = extract_color_from_theme(["CTkLabel", "text_color"], "#DCE4EE")
+        raw_button_text_color = extract_color_from_theme(["CTkButton", "text_color"], "#DCE4EE")
+
+        # Sanitizar colores
         frame_bg_color_mpl = sanitize_color_for_matplotlib(raw_frame_bg_color)
+        label_text_color_mpl = sanitize_color_for_matplotlib(raw_label_text_color)
+        button_text_color_mpl = sanitize_color_for_matplotlib(raw_button_text_color)
+
+        # Debugging - puedes comentar estas líneas después de que funcione
+        print(f"Debug - Frame BG: {raw_frame_bg_color} -> {frame_bg_color_mpl}")
+        print(f"Debug - Label Text: {raw_label_text_color} -> {label_text_color_mpl}")
+        print(f"Debug - Button Text: {raw_button_text_color} -> {button_text_color_mpl}")
+
+        # Aplicar colores a la figura
         self.fig.patch.set_facecolor(frame_bg_color_mpl)
         self.ax.set_facecolor(frame_bg_color_mpl)
-
-        try:
-            theme_val = ctk.ThemeManager.theme["CTkLabel"]["text_color"]
-            if isinstance(theme_val, tuple):
-                if len(theme_val) > 1:
-                    raw_label_text_color = theme_val[1]
-                elif len(theme_val) == 1:
-                    raw_label_text_color = theme_val[0]
-                else:
-                    raw_label_text_color = "#DCE4EE"  # Fallback
-            else:
-                raw_label_text_color = theme_val
-        except (KeyError, IndexError, TypeError):
-            raw_label_text_color = "#DCE4EE"  # Fallback general
-        label_text_color_mpl = sanitize_color_for_matplotlib(raw_label_text_color)
-
-        try:
-            theme_val = ctk.ThemeManager.theme["CTkButton"]["text_color"]
-            if isinstance(theme_val, tuple):
-                if len(theme_val) > 1:
-                    raw_button_text_color = theme_val[1]
-                elif len(theme_val) == 1:
-                    raw_button_text_color = theme_val[0]
-                else:
-                    raw_button_text_color = "#DCE4EE"  # Fallback
-            else:
-                raw_button_text_color = theme_val
-        except (KeyError, IndexError, TypeError):
-            raw_button_text_color = "#DCE4EE"  # Fallback general
-        button_text_color_mpl = sanitize_color_for_matplotlib(raw_button_text_color)
 
         G = nx.DiGraph()
         layer_nodes = []
@@ -714,7 +735,7 @@ class App(ctk.CTk):
             if num_layers_for_palette > 0:
                 color_palette_nodes = plt.cm.get_cmap('viridis', num_layers_for_palette)
             else:
-                color_palette_nodes = lambda x: "skyblue"  # Fallback si no hay capas
+                color_palette_nodes = lambda x: "skyblue"
         except ValueError:
             color_palette_nodes = lambda x: "skyblue"
 
@@ -736,7 +757,7 @@ class App(ctk.CTk):
         edge_labels = {}
         edge_colors_list = []
         edge_widths_list = []
-        default_edge_color_val = sanitize_color_for_matplotlib(label_text_color_mpl)
+        default_edge_color_val = label_text_color_mpl
 
         min_edge_width = 0.5
         max_edge_width = 4.0
@@ -746,7 +767,7 @@ class App(ctk.CTk):
             for i in range(len(layer_nodes) - 1):
                 for u_idx, u_node in enumerate(layer_nodes[i]):
                     for v_idx, v_node in enumerate(layer_nodes[i + 1]):
-                        G.add_edge(u_node, v_node)  # Asegurar que la arista exista antes de definir atributos
+                        G.add_edge(u_node, v_node)
                         current_edge_color = default_edge_color_val
                         current_edge_width = 1.0
 
@@ -781,16 +802,14 @@ class App(ctk.CTk):
         effective_edge_color = default_edge_color_val
         effective_edge_width = 1.0
 
-        if G.number_of_edges() > 0:  # Aplicar colores y grosores solo si hay aristas
+        if G.number_of_edges() > 0:
             if self.show_weights_var.get() and edge_colors_list and len(edge_colors_list) == G.number_of_edges():
                 effective_edge_color = edge_colors_list
-            # Si no se muestran pesos, effective_edge_color ya es default_edge_color_val
 
             if self.show_weights_var.get() and edge_widths_list and len(edge_widths_list) == G.number_of_edges():
                 effective_edge_width = edge_widths_list
-            # Si no se muestran pesos, effective_edge_width ya es 1.0
-        else:  # No hay aristas
-            effective_edge_color = []  # Matplotlib/NetworkX debería manejar lista vacía
+        else:
+            effective_edge_color = []
             effective_edge_width = []
 
         if G.number_of_nodes() > 0:
@@ -808,7 +827,8 @@ class App(ctk.CTk):
                                                        boxstyle='round,pad=0.2'))
         else:
             self.ax.clear()
-            self.ax.text(0.5, 0.5, "No hay red para visualizar.", horizontalalignment='center', verticalalignment='center',
+            self.ax.text(0.5, 0.5, "No hay red para visualizar.", horizontalalignment='center',
+                         verticalalignment='center',
                          transform=self.ax.transAxes, color=label_text_color_mpl)
 
         self.ax.set_title("Visualización de la Red Neuronal", color=label_text_color_mpl)
